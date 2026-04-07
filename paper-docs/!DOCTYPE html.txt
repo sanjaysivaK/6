@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather Finder</title>
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #fafafa;
+        }
+        h2 { margin-bottom: 10px; }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+        #weather-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 8px #ddd;
+            display: none;
+        }
+        input {
+            padding: 10px;
+            width: 300px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
+        }
+        button {
+            padding: 10px 15px;
+            background: #007bff;
+            border: none;
+            border-radius: 6px;
+            color: white;
+        }
+
+        /* Suggestions Box */
+        #suggestions {
+            position: absolute;
+            width: 300px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-top: 1px;
+            z-index: 999;
+        }
+        #suggestions div {
+            padding: 8px;
+            cursor: pointer;
+        }
+        #suggestions div:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>🌤 Weather Finder</h2>
+
+<!-- Input -->
+<input type="text" id="city" placeholder="Enter city name..." onkeyup="showSuggestions(this.value)">
+<button onclick="searchCity()">Search</button>
+<div id="suggestions"></div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Weather Output -->
+<div id="weather-box"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    // -------------------------------
+    // MAP INITIALIZATION
+    // -------------------------------
+    let map = L.map("map").setView([20.5937, 78.9629], 5); // India center
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+    }).addTo(map);
+
+    // Fetch weather by clicking map
+    map.on("click", (e) => {
+        fetch("/weather_by_coords", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: e.latlng.lat, lon: e.latlng.lng }),
+        })
+            .then((res) => res.json())
+            .then((data) => displayWeather(data));
+    });
+
+    // -------------------------------
+    // WEATHER BY CITY
+    // -------------------------------
+    function searchCity() {
+        let city = document.getElementById("city").value;
+
+        fetch("/weather_by_city", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ city: city }),
+        })
+            .then((res) => res.json())
+            .then((data) => displayWeather(data));
+    }
+
+    // -------------------------------
+    // DISPLAY WEATHER
+    // -------------------------------
+    function displayWeather(data) {
+        let box = document.getElementById("weather-box");
+
+        if (data.cod != 200) {
+            box.style.display = "block";
+            box.innerHTML = `<b>Error:</b> City not found.`;
+            return;
+        }
+
+        box.style.display = "block";
+        box.innerHTML = `
+            <h3>${data.name}, ${data.sys.country}</h3>
+            <img src="https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png">
+            <p><b>Temperature:</b> ${data.main.temp}°C</p>
+            <p><b>Feels Like:</b> ${data.main.feels_like}°C</p>
+            <p><b>Weather:</b> ${data.weather[0].description}</p>
+            <p><b>Humidity:</b> ${data.main.humidity}%</p>
+            <p><b>Wind Speed:</b> ${data.wind.speed} m/s</p>
+        `;
+    }
+
+    // -------------------------------
+    // AUTOCOMPLETE SUGGESTIONS
+    // -------------------------------
+    function showSuggestions(text) {
+        let box = document.getElementById("suggestions");
+
+        if (text.length < 2) {
+            box.innerHTML = "";
+            return;
+        }
+
+        fetch(`https://geocode.maps.co/search?q=${text}`)
+            .then((res) => res.json())
+            .then((data) => {
+                box.innerHTML = "";
+                data.slice(0, 5).forEach((item) => {
+                    let div = document.createElement("div");
+                    div.innerHTML = item.display_name;
+                    div.onclick = () => {
+                        document.getElementById("city").value = item.display_name;
+                        box.innerHTML = "";
+                    };
+                    box.appendChild(div);
+                });
+            });
+    }
+</script>
+
+</body>
+</html>
